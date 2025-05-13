@@ -1,3 +1,12 @@
+Metadata-Version: 2.1
+Name: resistant-kafka-avataa
+Version: 0.4
+Summary: UNKNOWN
+Home-page: UNKNOWN
+License: UNKNOWN
+Platform: UNKNOWN
+Description-Content-Type: text/markdown
+
 # Resistant Kafka
 
 **Resistant Kafka** is a Python library designed to simplify and stabilize interactions with Apache Kafka, both as a
@@ -483,3 +492,4 @@ task.send_message(
     ))
 
 ```
+
