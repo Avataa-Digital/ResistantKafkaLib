@@ -12,16 +12,19 @@ from confluent_kafka import Consumer
 from resistant_kafka_avataa.common_exceptions import KafkaMessageError
 from resistant_kafka_avataa.common_schemas import RedisMessage
 from resistant_kafka_avataa.consumer_schemas import ConsumerConfig
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
 
 logging.basicConfig(level=logging.INFO)
 
 
 class ConsumerInitializer:
-    def __init__(self, config: ConsumerConfig) -> None:
+    def __init__(self, config: ConsumerConfig, deserializers: MessageDeserializer = None) -> None:
         """
             Initializes and manages a Kafka consumer based on the given configuration.
 
             :param config: The configuration for the consumer.
+            :param deserializers: Deserializers objects for deserializing Kafka messages
+                                (custom deserializers are supported, and default string too)
         """
         self._consumer = Consumer(
             self._set_consumer_config(config=config)
@@ -31,6 +34,7 @@ class ConsumerInitializer:
             on_assign=self._connection_flag_method
         )
         self._config = config
+        self._deserializers = deserializers
 
     @staticmethod
     def _set_consumer_config(config: ConsumerConfig) -> dict:
@@ -125,7 +129,7 @@ def kafka_processor(raise_error: bool = False, read_empty_messages: bool = False
     :return: A decorator for wrapping the Kafka consumer's `process` method.
     """
 
-    def handle_kafka_errors(func):
+    def handle_kafka_errors(wrapped_function):
         async def wrapper(self, *args, **kwargs):
             __check_redis_settings_with_request(self._config, store_error_messages)
 
@@ -139,35 +143,23 @@ def kafka_processor(raise_error: bool = False, read_empty_messages: bool = False
                     message = await self.get_message(self._consumer)
 
                     if self.message_is_empty(message, self._consumer):
-                        if not read_empty_messages:
-                            return
-                        message = None
+                        if read_empty_messages:
+                            message = None
 
-                    await func(self, message, *args, **kwargs)
+                        else:
+                            return
+
+                    await wrapped_function(self, message, *args, **kwargs)
 
                 except Exception as e:
-                    error_type = type(e).__name__
-                    error_message = str(e)
-                    error_datetime = str(datetime.datetime.utcnow())
-
-                    if raise_error:
-                        raise KafkaMessageError(error_message)
-
-                    if store_error_messages:
-                        redis_client.hset(
-                            error_datetime + '____' + str(uuid.uuid4()),
-                            mapping=RedisMessage(
-                                processor=self._config.processor_name,
-                                topic=self._config.topic_to_subscribe,
-                                error_message=error_message,
-                                error_type=error_type,
-                                error_datetime=error_datetime,
-                                message_key=str(message.key().decode("utf-8")),
-                                message_value=str(message.value().decode("utf-8"))
-                            ).__dict__
-                        )
-
-                    print(f"Kafka processing error: {error_type}: {error_message}")
+                    __process_kafka_error_message(
+                        self=self,
+                        error_instance=e,
+                        raise_error=raise_error,
+                        store_error_messages=store_error_messages,
+                        redis_client=redis_client,
+                        message=message,
+                    )
 
                 finally:
                     self._consumer.commit(asynchronous=True)
@@ -175,6 +167,32 @@ def kafka_processor(raise_error: bool = False, read_empty_messages: bool = False
         return wrapper
 
     return handle_kafka_errors
+
+
+def __process_kafka_error_message(self, error_instance: Exception, raise_error: bool, store_error_messages: bool,
+                                  redis_client: Any, message: Any):
+    error_type = type(error_instance).__name__
+    error_message = str(error_instance)
+    error_datetime = str(datetime.datetime.utcnow())
+
+    if raise_error:
+        raise KafkaMessageError(error_message)
+
+    if store_error_messages:
+        redis_client.hset(
+            error_datetime + '____' + str(uuid.uuid4()),
+            mapping=RedisMessage(
+                processor=self._config.processor_name,
+                topic=self._config.topic_to_subscribe,
+                error_message=error_message,
+                error_type=error_type,
+                error_datetime=error_datetime,
+                message_key=str(message.key().decode("utf-8")),
+                message_value=str(message.value().decode("utf-8"))
+            ).__dict__
+        )
+
+    print(f"Kafka processing error: {error_type}: {error_message}")
 
 
 async def process_kafka_connection(tasks: list[ConsumerInitializer]) -> None:

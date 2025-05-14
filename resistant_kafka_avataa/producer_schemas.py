@@ -21,6 +21,7 @@ class ProducerConfig(BaseModel):
 @dataclass
 class DataSend:
     """
+        Class that collect data, that will be sent to Kafka by producer.
     """
     key: str
     value: Any
