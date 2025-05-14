@@ -1,11 +1,9 @@
 Metadata-Version: 2.1
-Name: resistant-kafka-avataa
-Version: 0.4
-Summary: UNKNOWN
-Home-page: UNKNOWN
-License: UNKNOWN
-Platform: UNKNOWN
+Name: resistant_kafka_avataa
+Version: 0.5
 Description-Content-Type: text/markdown
+Requires-Dist: confluent-kafka==2.8.2
+Requires-Dist: pydantic==1.10.21
 
 # Resistant Kafka
 
@@ -78,27 +76,24 @@ Kafka and add them to the handler class (for example, to KafkaMessageProcessor) 
 
 from resistant_kafka.consumer_schemas import ConsumerConfig
 
-common_consumer_config = dict(
-        bootstrap_servers='HOST:PORT',
-        group_id='CONSUMER_NAME',
+process_task_1 = KafkaMessage1Processor(
+    config=ConsumerConfig(
+        topic_to_subscribe='KafkaTesterProducer1',
+        processor_name='KafkaProcessor1',
+        bootstrap_servers='localhost:9093',
+        group_id='LocalTester1',
         auto_offset_reset='latest',
         enable_auto_commit=False,
 )
 
-process_task_1 = KafkaMessageProcessor(
+process_task_2 = KafkaMessage2Processor(
     config=ConsumerConfig(
-        topic_to_subscribe='TOPIC_NAME_1',
-        processor_name='KafkaMessageProcessor1',
-        **common_consumer_config
-    )
-)
-
-process_task_2 = KafkaMessageProcessor(
-    config=ConsumerConfig(
-        topic_to_subscribe='TOPIC_NAME_2',
-        processor_name='KafkaMessageProcessor2',
-        **common_consumer_config
-    )
+        topic_to_subscribe='KafkaTesterProducer2',
+        processor_name='KafkaProcessor2',
+        bootstrap_servers='localhost:9093',
+        group_id='LocalTester1',
+        auto_offset_reset='latest',
+        enable_auto_commit=False,
 )
 
 ```
@@ -111,7 +106,8 @@ Processor is a class-handler of a specific topic. It allows to perform CRUD oper
 topic **_independently of other processors._**
 
 ⚠️ **The name of the main method _"process"_ is reserved and is required for installation**.⚠️
-⚠️**Attribute "message" in main method _"process"_** **is required** ⚠️
+
+⚠️**Attribute _"message"_ in main method _"process"_** **is required** ⚠️
 
 ⚠️**The decorator "_kafka_processor_" is also required** ⚠️, which is responsible for the operation of the message
 stream and the
@@ -123,31 +119,29 @@ the work of a specific handler will be stopped.
 ```commandline
 
 from resistant_kafka.consumer import ConsumerInitializer, kafka_processor
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
 
-class KafkaMessageProcessor1(ConsumerInitializer):
+class KafkaMessage1Processor(ConsumerInitializer):
     def __init__(
-            self, config: ConsumerConfig
+            self,
+            config: ConsumerConfig,
+            deserializers: MessageDeserializer = None
     ):
-        super().__init__(config=config)
+        super().__init__(config=config, deserializers=deserializers)
         self._config = config
+        self._deserializers = deserializers
 
     # required decorator
     # to raise error, instead logging @kafka_processor(raise_error=True)
-    @kafka_processor() 
-    async def process(self, message):  # required service name 
-        message = await self.get_message(consumer=self._consumer)
-        if self.message_is_empty(message=message, consumer=self._consumer):
-            return
-        
+    @kafka_processor()
+    async def process(self, message):
         message_key = message.key().decode("utf-8")
         message_value = message.value().decode("utf-8")
+
+        if message_value in ['WRONG_VALUE']:
+            raise ValueError('You catch wrong value')
         
-        # here you can process your message
-        print('-----------------------------')
-        print('KEY', message_key)
-        print('VALUE', message_value)
-        print('CONSUMER', self._config.topic_to_subscribe)
-        print('-----------------------------')
+        # here your message proccessing
 
 ```
 
@@ -244,7 +238,7 @@ process_task = KafkaMessageProcessor(
     config=ConsumerConfig(
         topic_to_subscribe='KafkaTesterProducer1',
         processor_name='KafkaProcessor1',
-        bootstrap_servers='kafka.avataa.dev:9093',
+        bootstrap_servers='localhost:9093',
         group_id='LocalTester1',
         auto_offset_reset='latest',
         enable_auto_commit=False,
@@ -340,13 +334,90 @@ producer_config = ProducerConfig(
         security_config=consumer_config
 )
 ```
+##
+
+## Additional Step. Add deserializers
+
+In Kafka messages stores as bytes, so we need to get them in format, we wait for.
+Out library give opportunity _**transform messages from bytes to objects, by your .proto files**_ or, if there is 
+not .proto files deserialize - _**we transform it to strings for your future process**_
+##
+### _PROTO FILES_
+In case, when you have proto files, which can help you to format your messages - we can 
+convert it from bytes to your protobuf structure
+
+It can be done with Kafka Schema Registry, if there is no Kafka Schema Registry provided in your project -
+we will convert bytes to strings
+
+You have to use **_MessageDeserializer_** to registry your proto files, by which you wait messages from topic
+This way
+
+####
+
+#### _REGISTRY .proto FILES_
+
+```commandline
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
+
+deserializers_producer = MessageDeserializer(
+    schema_registry_url="https://localhost:8081",
+    topic='KafkaTesterProducer1'
+)
+deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_1)
+deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_2)
+
+
+process_task_1 = KafkaMessage1Processor(
+    config=ConsumerConfig(
+        topic_to_subscribe='KafkaTesterProducer1',
+        processor_name='KafkaProcessor1',
+        **consumer_config
+    ),
+    deserializers=deserializers_producer_1
+)
+```
+###
+### _SIMPLE MESSAGES_
+```commandline
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
+
+deserializers_producer_2 = MessageDeserializer(
+    topic='KafkaTesterProducer2'
+)
+```
+
+###
+### _READ DESERIALIZED MESSAGES_
+Using method **_deserialize_** of attribute value from deserializers you can convert bytes format of
+message value from topic to proto format, you wait for and get object
+```commandline
+class KafkaMessage1Processor(ConsumerInitializer):
+    def __init__(
+            self,
+            config: ConsumerConfig,
+            deserializers: MessageDeserializer = None
+    ):
+        super().__init__(config=config, deserializers=deserializers)
+        self._config = config
+        self._deserializers = deserializers
+
+    @kafka_processor(store_error_messages=True)
+    async def process(self, message):
+        message_key = message.key().decode("utf-8")
+        message_value = message.value().decode("utf-8")
+
+        if message_value in ['WRONG_VALUE']:
+            raise ValueError('You catch wrong value')
+        
+        deserialized_message = self._deserializers.deserialize(message=message)
+```
 
 #
 
 ## Installation
 
 ```bash
-    pip install resistant-kafka
+    pip install resistant-kafka-avataa
 ```
 
 # CONSUMER CODE EXAMPLE
@@ -367,20 +438,21 @@ consumer_config = KafkaSecurityConfig(
 
 class KafkaMessage1Processor(ConsumerInitializer):
     def __init__(
-            self, config: ConsumerConfig
+            self,
+            config: ConsumerConfig,
+            deserializers: MessageDeserializer = None
     ):
-        super().__init__(config=config)
+        super().__init__(config=config, deserializers=deserializers)
         self._config = config
+        self._deserializers = deserializers
 
-    # This way empty messages will not be process
-    @kafka_processor()
+    @kafka_processor(store_error_messages=True)
     async def process(self, message):
         message_key = message.key().decode("utf-8")
         message_value = message.value().decode("utf-8")
 
         if message_value in ['WRONG_VALUE']:
             raise ValueError('You catch wrong value')
-
         print('-----------------------------')
         print('KEY', message_key)
         print('VALUE', message_value)
@@ -391,13 +463,13 @@ class KafkaMessage1Processor(ConsumerInitializer):
 class KafkaMessage2Processor(ConsumerInitializer):
     def __init__(
             self,
-            config: ConsumerConfig
+            config: ConsumerConfig,
+            deserializers: MessageDeserializer = None
     ):
-        super().__init__(config=config)
+        super().__init__(config=config, deserializers=deserializers)
         self._config = config
-    
-    # This way every empty message = None
-    @kafka_processor(read_empty_messages=True)
+
+    @kafka_processor()
     async def process(self, message):
         message_key = message.key().decode("utf-8")
         message_value = message.value().decode("utf-8")
@@ -409,28 +481,42 @@ class KafkaMessage2Processor(ConsumerInitializer):
         print('-----------------------------')
 
 
+deserializers_producer_1 = MessageDeserializer(
+    schema_registry_url='http://localhost:8081',
+    topic='KafkaTesterProducer1'
+)
+deserializers_producer_1.register_protobuf_deserializer(ProtoFileToDeserialize)
+
+deserializers_producer_2 = MessageDeserializer(
+    topic='KafkaTesterProducer2'
+)
+
 process_task_1 = KafkaMessage1Processor(
     config=ConsumerConfig(
         topic_to_subscribe='KafkaTesterProducer1',
         processor_name='KafkaProcessor1',
-        bootstrap_servers='HOST:PORT',
-        group_id='CONSUMER NAME',
+        bootstrap_servers='localhost:9093',
+        group_id='LocalTester1',
         auto_offset_reset='latest',
         enable_auto_commit=False,
+        redis_store_config=redis_store_config,
         security_config=consumer_config
-    )
+    ),
+    deserializers=deserializers_producer_1
 )
 
 process_task_2 = KafkaMessage2Processor(
     config=ConsumerConfig(
         topic_to_subscribe='KafkaTesterProducer2',
         processor_name='KafkaProcessor2',
-        bootstrap_servers='HOST:PORT',
-        group_id='CONSUMER NAME',
+        bootstrap_servers='localhost:9093',
+        group_id='LocalTester1',
         auto_offset_reset='latest',
         enable_auto_commit=False,
+        redis_store_config=redis_store_config,
         security_config=consumer_config
-    )
+    ),
+    deserializers=deserializers_producer_2
 )
 
 init_kafka_connection(
@@ -492,4 +578,3 @@ task.send_message(
     ))
 
 ```
-
