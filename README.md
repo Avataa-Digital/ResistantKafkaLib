@@ -208,6 +208,83 @@ consumer_config = ConsumerConfig(
         security_config=consumer_config
 )
 ```
+##
+
+## Additional Step. Add deserializers
+
+
+In Kafka, messages are stored as bytes, so we need to get them in the format we expect.
+The library provides the ability to _**convert messages from bytes to objects using your 
+.proto files**_ or, if no .proto files are available, _**we will convert them to strings for 
+your future processing of this data**_.
+##
+### _PROTO FILES_
+In case you have proto files that can help you format your messages - we can 
+convert them from bytes to protobuf structure.
+
+This can be done with Kafka Schema Registry, if your project doesn't have Kafka Schema Registry -
+we will convert bytes to strings.
+
+You should use **_MessageDeserializer_** to registry your proto files with which you expect messages from the topic
+####
+
+#### _REGISTRY .proto FILES_
+
+```commandline
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
+
+deserializers_producer = MessageDeserializer(
+    schema_registry_url="https://localhost:8081",
+    topic='KafkaTesterProducer1'
+)
+deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_1)
+deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_2)
+
+
+process_task_1 = KafkaMessage1Processor(
+    config=ConsumerConfig(
+        topic_to_subscribe='KafkaTesterProducer1',
+        processor_name='KafkaProcessor1',
+        **consumer_config
+    ),
+    deserializers=deserializers_producer_1
+)
+```
+###
+### _SIMPLE MESSAGES_
+```commandline
+from resistant_kafka_avataa.message_desirializers import MessageDeserializer
+
+deserializers_producer_2 = MessageDeserializer(
+    topic='KafkaTesterProducer2'
+)
+```
+
+###
+### _READ DESERIALIZED MESSAGES_
+Using the **_deserialize_** method you can convert the byte format of the message value
+from the format of objects described in .proto and end up with an object instead of bytes
+```commandline
+class KafkaMessage1Processor(ConsumerInitializer):
+    def __init__(
+            self,
+            config: ConsumerConfig,
+            deserializers: MessageDeserializer = None
+    ):
+        super().__init__(config=config, deserializers=deserializers)
+        self._config = config
+        self._deserializers = deserializers
+
+    @kafka_processor(store_error_messages=True)
+    async def process(self, message):
+        message_key = message.key().decode("utf-8")
+        message_value = message.value().decode("utf-8")
+
+        if message_value in ['WRONG_VALUE']:
+            raise ValueError('You catch wrong value')
+        
+        deserialized_message = self._deserializers.deserialize(message=message)
+```
 
 ###
 
@@ -327,84 +404,6 @@ producer_config = ProducerConfig(
         security_config=consumer_config
 )
 ```
-##
-
-## Additional Step. Add deserializers
-
-In Kafka messages stores as bytes, so we need to get them in format, we wait for.
-Out library give opportunity _**transform messages from bytes to objects, by your .proto files**_ or, if there is 
-not .proto files deserialize - _**we transform it to strings for your future process**_
-##
-### _PROTO FILES_
-In case, when you have proto files, which can help you to format your messages - we can 
-convert it from bytes to your protobuf structure
-
-It can be done with Kafka Schema Registry, if there is no Kafka Schema Registry provided in your project -
-we will convert bytes to strings
-
-You have to use **_MessageDeserializer_** to registry your proto files, by which you wait messages from topic
-This way
-
-####
-
-#### _REGISTRY .proto FILES_
-
-```commandline
-from resistant_kafka_avataa.message_desirializers import MessageDeserializer
-
-deserializers_producer = MessageDeserializer(
-    schema_registry_url="https://localhost:8081",
-    topic='KafkaTesterProducer1'
-)
-deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_1)
-deserializers_producer.register_protobuf_deserializer(ProtoFileWithData_2)
-
-
-process_task_1 = KafkaMessage1Processor(
-    config=ConsumerConfig(
-        topic_to_subscribe='KafkaTesterProducer1',
-        processor_name='KafkaProcessor1',
-        **consumer_config
-    ),
-    deserializers=deserializers_producer_1
-)
-```
-###
-### _SIMPLE MESSAGES_
-```commandline
-from resistant_kafka_avataa.message_desirializers import MessageDeserializer
-
-deserializers_producer_2 = MessageDeserializer(
-    topic='KafkaTesterProducer2'
-)
-```
-
-###
-### _READ DESERIALIZED MESSAGES_
-Using method **_deserialize_** of attribute value from deserializers you can convert bytes format of
-message value from topic to proto format, you wait for and get object
-```commandline
-class KafkaMessage1Processor(ConsumerInitializer):
-    def __init__(
-            self,
-            config: ConsumerConfig,
-            deserializers: MessageDeserializer = None
-    ):
-        super().__init__(config=config, deserializers=deserializers)
-        self._config = config
-        self._deserializers = deserializers
-
-    @kafka_processor(store_error_messages=True)
-    async def process(self, message):
-        message_key = message.key().decode("utf-8")
-        message_value = message.value().decode("utf-8")
-
-        if message_value in ['WRONG_VALUE']:
-            raise ValueError('You catch wrong value')
-        
-        deserialized_message = self._deserializers.deserialize(message=message)
-```
-
 #
 
 ## Installation
