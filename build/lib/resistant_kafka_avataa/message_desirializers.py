@@ -5,7 +5,10 @@ from typing import Any, Optional, Type
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
 from confluent_kafka.serialization import SerializationContext, MessageField
+from google.protobuf import json_format
 
+_SCHEMA_REGISTRY_VALUE_FLAG = 0
+_SCHEMA_REGISTRY_SERVICE_VALUES = 7
 
 class MessageDeserializer:
     """
@@ -16,6 +19,7 @@ class MessageDeserializer:
         self.topic = topic
         self.deserializers: dict[
             str, dict[str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]]] = defaultdict(dict)
+        self.proto_deserializers: dict = dict()
         self.logger = getLogger("Message Handler")
 
         if schema_registry_url:
@@ -45,6 +49,7 @@ class MessageDeserializer:
             self.deserializers[self.topic][message_type.__name__] = DefaultMessageDeserializer(
                 message_type=message_type,
             )
+        self.proto_deserializers[message_type.__name__] = message_type
 
         self.logger.info(
             f"Registered new deserializer for topic {self.topic} and key {message_type.__name__}"
@@ -56,6 +61,7 @@ class MessageDeserializer:
     ) -> Any:
         """
             Main function for deserialization messages from Kafka.
+            Using this method, you get a message as an object, from proto format
         """
         key = (
             "List" + message.key().decode("utf-8").split(":")[0]
@@ -71,15 +77,33 @@ class MessageDeserializer:
         deserializer = self.deserializers[self.topic][key]
         return deserializer(message.value(), SerializationContext(self.topic, MessageField.VALUE))
 
+    def deserialize_to_dict(self, message: Any):
+        """
+            This method returns a message as a dictionary, from proto format
+        """
+        key = (
+            "List" + message.key().decode("utf-8").split(":")[0]
+            if message.key()
+            else "unknown"
+        )
+
+        deserializer = self.proto_deserializers[key]()
+        message_value = message.value()
+        if message[0] == _SCHEMA_REGISTRY_VALUE_FLAG:
+            message_value = message_value[_SCHEMA_REGISTRY_SERVICE_VALUES:]
+
+        deserializer.ParseFromString(message_value)
+        return json_format.MessageToDict(
+            deserializer,
+            including_default_value_fields=False,
+            preserving_proto_field_name=True,
+        )
 
 class DefaultMessageDeserializer:
     """
         This class deserializes messages as string
         Also clear messages from kafka service information
     """
-    _SCHEMA_REGISTRY_VALUE_FLAG = 0
-    _SCHEMA_REGISTRY_SERVICE_VALUES = 7
-
     def __init__(self, message_type: Any) -> None:
         self.message_type = message_type
         self.logger = getLogger("Manual Deserializer")
@@ -88,8 +112,8 @@ class DefaultMessageDeserializer:
         """
             If a schema registry flag is set, remove kafka service info from a message
         """
-        if message[0] == self._SCHEMA_REGISTRY_VALUE_FLAG:
-            return message[self._SCHEMA_REGISTRY_SERVICE_VALUES:]
+        if message[0] == _SCHEMA_REGISTRY_VALUE_FLAG:
+            return message[_SCHEMA_REGISTRY_SERVICE_VALUES:]
 
         return message
 
