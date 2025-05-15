@@ -89,7 +89,7 @@ class MessageDeserializer:
 
         deserializer = self.proto_deserializers[key]()
         message_value = message.value()
-        if message[0] == _SCHEMA_REGISTRY_VALUE_FLAG:
+        if message_value[0] == _SCHEMA_REGISTRY_VALUE_FLAG:
             message_value = message_value[_SCHEMA_REGISTRY_SERVICE_VALUES:]
 
         deserializer.ParseFromString(message_value)
