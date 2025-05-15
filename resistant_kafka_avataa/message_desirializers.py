@@ -13,7 +13,7 @@ class MessageDeserializer:
     """
     def __init__(self, topic: str, schema_registry_url: str | None = None, ):
         self.schema_registry_client = None
-        self.topic = None
+        self.topic = topic
         self.deserializers: dict[
             str, dict[str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]]] = defaultdict(dict)
         self.logger = getLogger("Message Handler")
