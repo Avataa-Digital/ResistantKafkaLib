@@ -10,15 +10,22 @@ from google.protobuf import json_format
 _SCHEMA_REGISTRY_VALUE_FLAG = 0
 _SCHEMA_REGISTRY_SERVICE_VALUES = 7
 
+
 class MessageDeserializer:
     """
-        This class is used to deserialize messages from Kafka.
+    This class is used to deserialize messages from Kafka.
     """
-    def __init__(self, topic: str, schema_registry_url: str | None = None, ):
+
+    def __init__(
+        self,
+        topic: str,
+        schema_registry_url: str | None = None,
+    ):
         self.schema_registry_client = None
         self.topic = topic
         self.deserializers: dict[
-            str, dict[str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]]] = defaultdict(dict)
+            str, dict[str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]]
+        ] = defaultdict(dict)
         self.proto_deserializers: dict = dict()
         self.logger = getLogger("Message Handler")
 
@@ -31,23 +38,28 @@ class MessageDeserializer:
             )
 
     def register_protobuf_deserializer(
-            self, message_type: Type[Any],
+        self,
+        message_type: Type[Any],
     ) -> None:
         """
-            According to the message type, register a deserializer for a topic by deserializer:
-                - custom (by added files in "deserializers" attribute)
-                - default (by adding "DefaultMessageDeserializer", which serializes messages as string)
+        According to the message type, register a deserializer for a topic by deserializer:
+            - custom (by added files in "deserializers" attribute)
+            - default (by adding "DefaultMessageDeserializer", which serializes messages as string)
         """
         if self.schema_registry_client:
-            self.deserializers[self.topic][message_type.__name__] = ProtobufDeserializer(
-                message_type=message_type,
-                schema_registry_client=self.schema_registry_client,
-                conf={"use.deprecated.format": False},
+            self.deserializers[self.topic][message_type.__name__] = (
+                ProtobufDeserializer(
+                    message_type=message_type,
+                    schema_registry_client=self.schema_registry_client,
+                    conf={"use.deprecated.format": False},
+                )
             )
 
         else:
-            self.deserializers[self.topic][message_type.__name__] = DefaultMessageDeserializer(
-                message_type=message_type,
+            self.deserializers[self.topic][message_type.__name__] = (
+                DefaultMessageDeserializer(
+                    message_type=message_type,
+                )
             )
         self.proto_deserializers[message_type.__name__] = message_type
 
@@ -56,12 +68,12 @@ class MessageDeserializer:
         )
 
     def deserialize(
-            self,
-            message: Any,
+        self,
+        message: Any,
     ) -> Any:
         """
-            Main function for deserialization messages from Kafka.
-            Using this method, you get a message as an object, from proto format
+        Main function for deserialization messages from Kafka.
+        Using this method, you get a message as an object, from proto format
         """
         key = (
             "List" + message.key().decode("utf-8").split(":")[0]
@@ -69,17 +81,22 @@ class MessageDeserializer:
             else "unknown"
         )
 
-        not_registered_topic = self.topic not in self.deserializers or key not in self.deserializers[self.topic]
+        not_registered_topic = (
+            self.topic not in self.deserializers
+            or key not in self.deserializers[self.topic]
+        )
 
         if not_registered_topic:
             raise ValueError(f"No deserializer registered for topic {self.topic}")
 
         deserializer = self.deserializers[self.topic][key]
-        return deserializer(message.value(), SerializationContext(self.topic, MessageField.VALUE))
+        return deserializer(
+            message.value(), SerializationContext(self.topic, MessageField.VALUE)
+        )
 
     def deserialize_to_dict(self, message: Any):
         """
-            This method returns a message as a dictionary, from proto format
+        This method returns a message as a dictionary, from proto format
         """
         key = (
             "List" + message.key().decode("utf-8").split(":")[0]
@@ -99,18 +116,20 @@ class MessageDeserializer:
             preserving_proto_field_name=True,
         )
 
+
 class DefaultMessageDeserializer:
     """
-        This class deserializes messages as string
-        Also clear messages from kafka service information
+    This class deserializes messages as string
+    Also clear messages from kafka service information
     """
+
     def __init__(self, message_type: Any) -> None:
         self.message_type = message_type
         self.logger = getLogger("Manual Deserializer")
 
     def _remove_schema_registry_flags(self, message: bytes) -> bytes:
         """
-            If a schema registry flag is set, remove kafka service info from a message
+        If a schema registry flag is set, remove kafka service info from a message
         """
         if message[0] == _SCHEMA_REGISTRY_VALUE_FLAG:
             return message[_SCHEMA_REGISTRY_SERVICE_VALUES:]
@@ -119,8 +138,8 @@ class DefaultMessageDeserializer:
 
     def __call__(self, message: bytes, ctx: Optional[SerializationContext] = None):
         """
-             Looks like ProtobufDeserializer from confluent_kafka.schema_registry.protobuf.
-             So we have to use by default "ctx" attribute
+        Looks like ProtobufDeserializer from confluent_kafka.schema_registry.protobuf.
+        So we have to use by default "ctx" attribute
         """
         self.logger.info("Deserialized with help manual")
         message = self._remove_schema_registry_flags(message=message)
