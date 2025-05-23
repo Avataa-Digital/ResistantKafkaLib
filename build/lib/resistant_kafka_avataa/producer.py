@@ -57,22 +57,26 @@ class ProducerInitializer:
         )
 
     def send_message(
-        self,
-        data_to_send: DataSend,
-        partition_number: int = 1,
+            self,
+            data_to_send: DataSend,
+            partition_number: int | None = None,
     ) -> None:
         """
-            Send message to Kafka topic.
+        Send message to Kafka topic.
 
         :param data_to_send: Data with configuration to send message to Kafka topic
-        :param partition_number: Number for producer partition
+        :param partition_number: (Optional) Kafka partition number
         """
-        self._producer.produce(
+        produce_kwargs = dict(
             topic=self._producer_name,
             key=data_to_send.key,
             value=data_to_send.value,
             on_delivery=self._delivery_report,
             headers=data_to_send.headers,
-            partition=partition_number
         )
+
+        if partition_number:
+            produce_kwargs["partition"] = partition_number
+
+        self._producer.produce(**produce_kwargs)
         self._producer.flush()
