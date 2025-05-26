@@ -6,6 +6,7 @@ resistant_kafka_avataa/common_schemas.py
 resistant_kafka_avataa/consumer.py
 resistant_kafka_avataa/consumer_schemas.py
 resistant_kafka_avataa/message_desirializers.py
+resistant_kafka_avataa/message_serializers.py
 resistant_kafka_avataa/producer.py
 resistant_kafka_avataa/producer_schemas.py
 resistant_kafka_avataa.egg-info/PKG-INFO
