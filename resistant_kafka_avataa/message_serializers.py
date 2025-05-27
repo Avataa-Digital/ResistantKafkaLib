@@ -10,7 +10,7 @@ class MessageSerializer:
     """
     This class is used to serialize messages from Kafka producer by shema registry or just converting to string.
     """
-    __DEFAULT_REGISTRY_CONFIG: dict[str, bool] = {"use.deprecated.format": False},
+    __DEFAULT_REGISTRY_CONFIG: dict[str, bool] = {"use.deprecated.format": False}
 
     def __init__(self, topic: str, schema_registry_url: str = None):
 
@@ -28,7 +28,7 @@ class MessageSerializer:
 
         self.logger = getLogger("Message Serializer")
 
-    def register_protobuf_deserializer(
+    def register_protobuf_serializer(
             self,
             message_type: Any
     ) -> None:

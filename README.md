@@ -13,6 +13,14 @@ or ProducerInitializer.
 
 ###
 
+### 🔁 Serialisation | Deserialisation
+
+The library allows you to serialize and deserialize data that 
+you send using .proto formats. It also supports Schema Registry, 
+which allows you to make sure that the data arrives in the correct format.
+
+###
+
 ### 💾 Redis integration
 
 We provide an easy way to connect to Redis.
@@ -405,6 +413,65 @@ producer_config = ProducerConfig(
 )
 ```
 #
+
+
+## Additional Step. Add serializers
+
+
+In Kafka, messages are stored as bytes, so we need to get them in the format we expect.
+The library provides the ability to _**convert messages from bytes to objects using your 
+.proto files**_ or, if no .proto files are available, _**we will convert them to strings for 
+your future processing of this data**_.
+##
+### _PROTO FILES_
+In case you have proto files that can help you format your messages - we can 
+convert them from bytes to protobuf structure.
+
+This can be done with Kafka Schema Registry, if your project doesn't have Kafka Schema Registry -
+we will convert bytes to strings.
+
+You should use **_MessageSerializer_** to registry your proto files with which you expect messages from the topic
+####
+
+#### _REGISTRY .proto FILES_
+
+```commandline
+from resistant_kafka_avataa.message_serializers import MessageSerializer
+
+serializer_task = MessageSerializer(
+    schema_registry_url="https://localhost:8081",
+    topic='KafkaTesterProducer1'
+)
+serializer_task.register_protobuf_deserializer(ProtoFile1)
+serializer_task.register_protobuf_deserializer(ProtoFile2)
+
+_producer_manager.send_message(
+    data_to_send=DataSend(
+        key=key,
+        value=serializer_task.serialize(
+            message_to_send=message_to_send,
+            class_name=ProtoFile1
+        ),
+    ),
+)
+```
+###
+### _SIMPLE MESSAGES_
+```commandline
+from resistant_kafka_avataa.message_serializers import MessageSerializer
+
+serializer_task = MessageSerializer(
+    topic='KafkaTesterProducer1'
+)
+_producer_manager.send_message(
+    data_to_send=DataSend(
+        key=key,
+        value=serializer_task.serialize(
+            message_to_send=message_to_send
+        ),
+    ),
+)
+```
 
 ## Installation
 
