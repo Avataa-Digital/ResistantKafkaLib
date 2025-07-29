@@ -14,11 +14,13 @@ class KafkaSecurityConfig(BaseModel):
     :param security_protocol: The protocol used to communicate with Kafka brokers
                               (e.g., 'SASL_PLAINTEXT', 'SASL_SSL').
     :param sasl_mechanisms: The SASL mechanism used for authentication (e.g., 'PLAIN', 'SCRAM-SHA-256').
+    :param error_cb: A function that returns an error during the authentication.
     """
 
     oauth_cb: Callable
     security_protocol: str
     sasl_mechanisms: str
+    error_cb: Callable | None = None
 
 
 class RedisStoreConfig(BaseModel):

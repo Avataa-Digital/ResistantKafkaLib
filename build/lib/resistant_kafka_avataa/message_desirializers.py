@@ -70,16 +70,18 @@ class MessageDeserializer:
     def deserialize(
         self,
         message: Any,
+        key: str = None,
     ) -> Any:
         """
         Main function for deserialization messages from Kafka.
         Using this method, you get a message as an object, from proto format
         """
-        key = (
-            "List" + message.key().decode("utf-8").split(":")[0]
-            if message.key()
-            else "unknown"
-        )
+        if not key:
+            key = (
+                "List" + message.key().decode("utf-8").split(":")[0]
+                if message.key()
+                else "unknown"
+            )
 
         not_registered_topic = (
             self.topic not in self.deserializers
@@ -112,7 +114,7 @@ class MessageDeserializer:
         deserializer.ParseFromString(message_value)
         return json_format.MessageToDict(
             deserializer,
-            including_default_value_fields=False,
+            False,
             preserving_proto_field_name=True,
         )
 

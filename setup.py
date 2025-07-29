@@ -6,11 +6,12 @@ with open("README.md", "r") as f:
 
 setup(
     name="resistant_kafka_avataa",
-    version="0.9.7",
+    version='0.9.8b9',
     packages=find_packages(),
     install_requires=[
-        "confluent-kafka[protobuf,schemaregistry]==2.10.0",
-        "pydantic>=1.10.21,<3.0.0",
+        "confluent-kafka[protobuf,schemaregistry]>=2.10.0,<3.0.0",
+        "protobuf>=5.29.3,<6.0.0",
+        "pydantic>=1.10.21,<3.0.0"
     ],
     long_description=description,
     long_description_content_type="text/markdown",

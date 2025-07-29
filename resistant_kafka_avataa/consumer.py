@@ -7,11 +7,12 @@ from abc import abstractmethod
 from asyncio import Future
 from typing import Any
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, cimpl
 
 from resistant_kafka_avataa.common_exceptions import KafkaMessageError
 from resistant_kafka_avataa.common_schemas import RedisMessage
 from resistant_kafka_avataa.consumer_schemas import ConsumerConfig
+from resistant_kafka_avataa.logger import configure_logger
 from resistant_kafka_avataa.message_desirializers import MessageDeserializer
 
 logging.basicConfig(level=logging.INFO)
@@ -137,7 +138,7 @@ def kafka_processor(
 
     :return: A decorator for wrapping the Kafka consumer's `process` method.
     """
-
+    logger = configure_logger("kafka_processor")
     def handle_kafka_errors(wrapped_function):
         async def wrapper(self, *args, **kwargs):
             __check_redis_settings_with_request(self._config, store_error_messages)
@@ -149,16 +150,20 @@ def kafka_processor(
 
             while True:
                 try:
+                    logger.debug(f"Polled at {datetime.datetime.now(tz=datetime.timezone.utc)}")
                     message = await self.get_message(self._consumer)
-
                     if self.message_is_empty(message, self._consumer):
                         if read_empty_messages:
                             message = None
 
                         else:
                             return
-
+                    logger.debug(
+                        f"Got message: {message.key()} Offset: {message.offset()} at"
+                        f" {datetime.datetime.now(tz=datetime.timezone.utc)}")
+                    logger.debug(f"Start processing at {datetime.datetime.now(tz=datetime.timezone.utc)}")
                     await wrapped_function(self, message, *args, **kwargs)
+                    logger.debug(f"Done processing at {datetime.datetime.now(tz=datetime.timezone.utc)}")
 
                 except Exception as e:
                     __process_kafka_error_message(
@@ -184,11 +189,11 @@ def __process_kafka_error_message(
     raise_error: bool,
     store_error_messages: bool,
     redis_client: Any,
-    message: Any,
+    message: cimpl.Message,
 ):
     error_type = type(error_instance).__name__
     error_message = str(error_instance)
-    error_datetime = str(datetime.datetime.utcnow())
+    error_datetime = str(datetime.datetime.now(datetime.timezone.utc))
 
     if raise_error:
         raise KafkaMessageError(error_message)
@@ -206,8 +211,12 @@ def __process_kafka_error_message(
                 message_value=str(message.value().decode("utf-8")),
             ).__dict__,
         )
-
     print(f"Kafka processing error: {error_type}: {error_message}")
+    print(f"Incoming request:"
+          f"{message.topic()=}"
+          f"{message.offset()=}"
+          f"key = {message.key().decode('utf-8')}"
+          f"value = {message.value().decode('utf-8')}")
 
 
 async def process_kafka_connection(tasks: list[ConsumerInitializer]) -> None:
