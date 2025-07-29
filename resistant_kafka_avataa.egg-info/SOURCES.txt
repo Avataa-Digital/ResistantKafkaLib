@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 resistant_kafka_avataa/__init__.py
@@ -5,6 +6,7 @@ resistant_kafka_avataa/common_exceptions.py
 resistant_kafka_avataa/common_schemas.py
 resistant_kafka_avataa/consumer.py
 resistant_kafka_avataa/consumer_schemas.py
+resistant_kafka_avataa/logger.py
 resistant_kafka_avataa/message_desirializers.py
 resistant_kafka_avataa/message_serializers.py
 resistant_kafka_avataa/producer.py
