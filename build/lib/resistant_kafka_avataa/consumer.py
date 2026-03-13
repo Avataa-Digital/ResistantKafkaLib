@@ -115,6 +115,20 @@ class ConsumerInitializer:
         pass
 
 
+def _safe_decode(raw: bytes | None) -> str:
+    """
+    Decode bytes to UTF-8 string for logging/storage.
+    Non-UTF-8 bytes are replaced with the Unicode replacement character;
+    None is returned as a placeholder string.
+    """
+    if raw is None:
+        return "<none>"
+    try:
+        return raw.decode("utf-8")
+    except (UnicodeDecodeError, AttributeError):
+        return raw.decode("utf-8", errors="replace")
+
+
 def __check_redis_settings_with_request(
     consumer_config: ConsumerConfig, store_error_messages: bool
 ) -> None:
@@ -189,14 +203,20 @@ def __process_kafka_error_message(
     raise_error: bool,
     store_error_messages: bool,
     redis_client: Any,
-    message: cimpl.Message,
+    message: cimpl.Message | None,
 ):
+    default_no_message = "<no message>"
     error_type = type(error_instance).__name__
     error_message = str(error_instance)
     error_datetime = str(datetime.datetime.now(datetime.timezone.utc))
 
     if raise_error:
         raise KafkaMessageError(error_message)
+
+    msg_key = _safe_decode(message.key()) if message is not None else default_no_message
+    msg_value = _safe_decode(message.value()) if message is not None else default_no_message
+    msg_topic = message.topic() if message is not None else default_no_message
+    msg_offset = message.offset() if message is not None else default_no_message
 
     if store_error_messages:
         redis_client.hset(
@@ -207,16 +227,18 @@ def __process_kafka_error_message(
                 error_message=error_message,
                 error_type=error_type,
                 error_datetime=error_datetime,
-                message_key=str(message.key().decode("utf-8")),
-                message_value=str(message.value().decode("utf-8")),
+                message_key=msg_key,
+                message_value=msg_value,
             ).__dict__,
         )
     print(f"Kafka processing error: {error_type}: {error_message}")
-    print(f"Incoming request:"
-          f"{message.topic()=}"
-          f"{message.offset()=}"
-          f"key = {message.key().decode('utf-8')}"
-          f"value = {message.value().decode('utf-8')}")
+    print(
+        f"Incoming request:"
+        f" topic={msg_topic}"
+        f" offset={msg_offset}"
+        f" key = {msg_key}"
+        f" value = {msg_value}"
+    )
 
 
 async def process_kafka_connection(tasks: list[ConsumerInitializer]) -> None:

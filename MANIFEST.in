@@ -1,0 +1,2 @@
+# Exclude tests from source distribution (PyPI)
+prune tests
