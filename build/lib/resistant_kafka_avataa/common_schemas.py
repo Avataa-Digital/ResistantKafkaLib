@@ -17,7 +17,7 @@ class KafkaSecurityConfig(BaseModel):
     :param error_cb: A function that returns an error during the authentication.
     """
 
-    oauth_cb: Callable
+    oauth_cb: Callable | None = None
     security_protocol: str
     sasl_mechanisms: str
     error_cb: Callable | None = None
