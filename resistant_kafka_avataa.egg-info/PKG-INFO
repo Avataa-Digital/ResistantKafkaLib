@@ -1,8 +1,8 @@
 Metadata-Version: 2.4
 Name: resistant_kafka_avataa
-Version: 0.9.8b11
+Version: 0.9.8b13
 Description-Content-Type: text/markdown
-Requires-Dist: confluent-kafka[protobuf,schemaregistry]<2.13.0,>=2.10.0
+Requires-Dist: confluent-kafka[protobuf,schemaregistry]<3.0.0,>=2.10.0
 Requires-Dist: protobuf<8.0.0,>=5.29.6
 Requires-Dist: pydantic<3.0.0,>=1.10.26
 Dynamic: description

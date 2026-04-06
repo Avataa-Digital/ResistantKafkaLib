@@ -29,11 +29,25 @@ class ProducerInitializer:
         }
 
         if config.security_config:
-            producer_config["oauth_cb"] = config.security_config.oauth_cb
+            if config.security_config.oauth_cb:
+                producer_config["oauth_cb"] = config.security_config.oauth_cb
             producer_config["security.protocol"] = (
                 config.security_config.security_protocol
             )
             producer_config["sasl.mechanisms"] = config.security_config.sasl_mechanisms
+            if config.security_config.sasl_oauthbearer_method:
+                producer_config["sasl.oauthbearer.method"] = config.security_config.sasl_oauthbearer_method
+            if config.security_config.sasl_oauthbearer_client_id:
+                producer_config["sasl.oauthbearer.client.id"] = config.security_config.sasl_oauthbearer_client_id
+            if config.security_config.sasl_oauthbearer_client_secret:
+                producer_config[
+                    "sasl.oauthbearer.client.secret"] = config.security_config.sasl_oauthbearer_client_secret
+            if config.security_config.sasl_oauthbearer_token_endpoint_url:
+                producer_config[
+                    "sasl.oauthbearer.token.endpoint.url"] = config.security_config.sasl_oauthbearer_token_endpoint_url
+            if config.security_config.sasl_oauthbearer_scope:
+                producer_config["sasl.oauthbearer.scope"] = config.security_config.sasl_oauthbearer_scope
+
 
         return producer_config
 

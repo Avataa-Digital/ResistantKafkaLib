@@ -15,12 +15,23 @@ class KafkaSecurityConfig(BaseModel):
                               (e.g., 'SASL_PLAINTEXT', 'SASL_SSL').
     :param sasl_mechanisms: The SASL mechanism used for authentication (e.g., 'PLAIN', 'SCRAM-SHA-256').
     :param error_cb: A function that returns an error during the authentication.
+    Accordance KIP-1139
+    :param sasl_oauthbearer_method: The SASL OAuth mechanism used for authentication.
+    :param sasl_oauthbearer_client_id: The SASL OAuth client id used for authentication.
+    :param sasl_oauthbearer_client_secret: The SASL OAuth client secret used for authentication.
+    :param sasl_oauthbearer_token_endpoint_url: The SASL OAuth token endpoint URL.
+    :param sasl_oauthbearer_scope: The SASL OAuth scope used for authentication.
     """
 
     oauth_cb: Callable | None = None
     security_protocol: str
     sasl_mechanisms: str
     error_cb: Callable | None = None
+    sasl_oauthbearer_method: str | None = None
+    sasl_oauthbearer_client_id: str | None = None
+    sasl_oauthbearer_client_secret: str | None = None
+    sasl_oauthbearer_token_endpoint_url: str | None = None
+    sasl_oauthbearer_scope: str | None = None
 
 
 class RedisStoreConfig(BaseModel):
