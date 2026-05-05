@@ -1,5 +1,5 @@
 Metadata-Version: 2.4
-Name: resistant_kafka_avataa
+Name: ResistantKafkaLib
 Version: 0.9.8b14
 Summary: High-level wrapper for confluent-kafka-python with built-in retry logic and protobuf support.
 Project-URL: Homepage, https://github.com/Avataa-Digital/ResistantKafkaLib

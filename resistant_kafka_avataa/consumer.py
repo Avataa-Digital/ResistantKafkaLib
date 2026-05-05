@@ -8,8 +8,9 @@ from asyncio import Future
 from typing import Any
 
 from confluent_kafka import Consumer, cimpl
+from confluent_kafka.admin import AdminClient
 
-from resistant_kafka_avataa.common_exceptions import KafkaMessageError
+from resistant_kafka_avataa.common_exceptions import KafkaMessageError, KafkaConnectionError
 from resistant_kafka_avataa.common_schemas import RedisMessage
 from resistant_kafka_avataa.consumer_schemas import ConsumerConfig
 from resistant_kafka_avataa.logger import configure_logger
@@ -30,9 +31,7 @@ class ConsumerInitializer:
                             (custom deserializers are supported, and default string too)
         """
         self._consumer = Consumer(self._set_consumer_config(config=config))
-        self._consumer.subscribe(
-            topics=[config.topic_to_subscribe], on_assign=self._connection_flag_method
-        )
+        self._topic_to_subscribe = config.topic_to_subscribe
         self._config = config
         self._deserializers = deserializers
 
@@ -80,6 +79,23 @@ class ConsumerInitializer:
         logging.info(
             f"{self._config.processor_name} successfully subscribed "
             f"to the topic {self._config.topic_to_subscribe}\n"
+        )
+
+
+    async def start(self):
+        admin_client = AdminClient(self._set_consumer_config(self._config))
+        try:
+            metadata = await asyncio.to_thread(
+                admin_client.list_topics, timeout=10
+            )
+            if self._topic_to_subscribe not in metadata.topics:
+                raise ValueError(f"Topic '{self._topic_to_subscribe}' not found!")
+        except KafkaConnectionError as ex:
+            print(f"Warning: Could not check topic existence: {ex}")
+
+        self._consumer.subscribe(
+            topics=[self._topic_to_subscribe],
+            on_assign=self._connection_flag_method
         )
 
     @staticmethod
@@ -260,6 +276,10 @@ async def process_kafka_connection(tasks: list[ConsumerInitializer]) -> None:
 
     :param tasks: A list of initialized Kafka consumers.
     """
+    for task in tasks:
+        if hasattr(task, 'start'):
+            await task.start()
+
     while True:
         await asyncio.gather(*[task.process() for task in tasks])
 

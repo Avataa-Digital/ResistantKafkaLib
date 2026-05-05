@@ -12,3 +12,11 @@ class KafkaMessageError(Exception):
     """
 
     pass
+
+
+class KafkaConnectionError(Exception):
+    """
+    Raised when an error occurs during the start consumer process
+    """
+
+    pass

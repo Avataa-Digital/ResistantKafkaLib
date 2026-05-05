@@ -1,3 +1,30 @@
+[project]
+name = "resistant_kafka_avataa"
+version = "0.9.8b14"
+description = "High-level wrapper for confluent-kafka-python with built-in retry logic and protobuf support."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "confluent-kafka[protobuf,schemaregistry]>=2.10.0,<2.15.0",
+    "protobuf>=5.29.6,<8.0.0",
+    "pydantic>=1.10.26,<3.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "build>=1.5.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.12",
+    "twine>=6.2.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Avataa-Digital/ResistantKafkaLib"
+
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["resistant_kafka_avataa*"]
