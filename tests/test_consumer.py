@@ -1,12 +1,12 @@
 from unittest.mock import MagicMock
 
-import pytest
-
 import resistant_kafka_avataa.consumer as consumer_module
 from resistant_kafka_avataa.consumer import _safe_decode
 
 
-_process_kafka_error_message = getattr(consumer_module, "__process_kafka_error_message")
+_process_kafka_error_message = getattr(
+    consumer_module, "__process_kafka_error_message"
+)
 
 
 def test_safe_decode_valid_utf8_returns_decoded_string() -> None:
@@ -91,7 +91,9 @@ def test_process_kafka_error_message_with_protobuf_like_value_does_not_raise(
     """
     # Arrange — minimal prefix from real trace: b"\n\x1a\x08\x91\xc6\x99\x17\x12\x07..."
     # decode('utf-8') fails at byte 0x91 (position 3)
-    protobuf_like_value: bytes = b"\n\x1a\x08\x91\xc6\x99\x17\x12\x074147218\x18\xff\x01"
+    protobuf_like_value: bytes = (
+        b"\n\x1a\x08\x91\xc6\x99\x17\x12\x074147218\x18\xff\x01"
+    )
     message = MagicMock()
     message.key.return_value = b"key"
     message.value.return_value = protobuf_like_value
@@ -114,7 +116,10 @@ def test_process_kafka_error_message_with_protobuf_like_value_does_not_raise(
     assert mapping["message_key"] == "key"
     assert isinstance(mapping["message_value"], str)
     # Invalid bytes replaced; no exception
-    assert "\ufffd" in mapping["message_value"] or len(mapping["message_value"]) > 0
+    assert (
+        "\ufffd" in mapping["message_value"]
+        or len(mapping["message_value"]) > 0
+    )
 
 
 def test_process_kafka_error_message_with_invalid_utf8_key_does_not_raise(

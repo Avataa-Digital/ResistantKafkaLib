@@ -1,4 +1,5 @@
 """Shared fixtures for consumer tests."""
+
 from unittest.mock import MagicMock
 
 import pytest

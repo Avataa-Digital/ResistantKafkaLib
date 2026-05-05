@@ -2,7 +2,10 @@ from typing import Union
 
 from pydantic import BaseModel
 
-from resistant_kafka_avataa.common_schemas import KafkaSecurityConfig, RedisStoreConfig
+from resistant_kafka_avataa.common_schemas import (
+    KafkaSecurityConfig,
+    RedisStoreConfig,
+)
 
 
 class ConsumerConfig(BaseModel):

@@ -34,20 +34,29 @@ class ProducerInitializer:
             producer_config["security.protocol"] = (
                 config.security_config.security_protocol
             )
-            producer_config["sasl.mechanisms"] = config.security_config.sasl_mechanisms
+            producer_config["sasl.mechanisms"] = (
+                config.security_config.sasl_mechanisms
+            )
             if config.security_config.sasl_oauthbearer_method:
-                producer_config["sasl.oauthbearer.method"] = config.security_config.sasl_oauthbearer_method
+                producer_config["sasl.oauthbearer.method"] = (
+                    config.security_config.sasl_oauthbearer_method
+                )
             if config.security_config.sasl_oauthbearer_client_id:
-                producer_config["sasl.oauthbearer.client.id"] = config.security_config.sasl_oauthbearer_client_id
+                producer_config["sasl.oauthbearer.client.id"] = (
+                    config.security_config.sasl_oauthbearer_client_id
+                )
             if config.security_config.sasl_oauthbearer_client_secret:
-                producer_config[
-                    "sasl.oauthbearer.client.secret"] = config.security_config.sasl_oauthbearer_client_secret
+                producer_config["sasl.oauthbearer.client.secret"] = (
+                    config.security_config.sasl_oauthbearer_client_secret
+                )
             if config.security_config.sasl_oauthbearer_token_endpoint_url:
-                producer_config[
-                    "sasl.oauthbearer.token.endpoint.url"] = config.security_config.sasl_oauthbearer_token_endpoint_url
+                producer_config["sasl.oauthbearer.token.endpoint.url"] = (
+                    config.security_config.sasl_oauthbearer_token_endpoint_url
+                )
             if config.security_config.sasl_oauthbearer_scope:
-                producer_config["sasl.oauthbearer.scope"] = config.security_config.sasl_oauthbearer_scope
-
+                producer_config["sasl.oauthbearer.scope"] = (
+                    config.security_config.sasl_oauthbearer_scope
+                )
 
         return producer_config
 
@@ -66,14 +75,17 @@ class ProducerInitializer:
 
         print(
             "User record {} successfully produced to {} [{}] at offset {}".format(
-                message.key(), message.topic(), message.partition(), message.offset()
+                message.key(),
+                message.topic(),
+                message.partition(),
+                message.offset(),
             )
         )
 
     def send_message(
-            self,
-            data_to_send: DataSend,
-            partition_number: int = 0,
+        self,
+        data_to_send: DataSend,
+        partition_number: int = 0,
     ) -> None:
         """
             Send message to Kafka topic.
@@ -87,6 +99,6 @@ class ProducerInitializer:
             value=data_to_send.value,
             on_delivery=self._delivery_report,
             headers=data_to_send.headers,
-            partition=partition_number
+            partition=partition_number,
         )
         self._producer.flush()

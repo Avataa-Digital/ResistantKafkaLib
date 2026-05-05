@@ -10,7 +10,10 @@ from typing import Any
 from confluent_kafka import Consumer, cimpl
 from confluent_kafka.admin import AdminClient
 
-from resistant_kafka_avataa.common_exceptions import KafkaMessageError, KafkaConnectionError
+from resistant_kafka_avataa.common_exceptions import (
+    KafkaMessageError,
+    KafkaConnectionError,
+)
 from resistant_kafka_avataa.common_schemas import RedisMessage
 from resistant_kafka_avataa.consumer_schemas import ConsumerConfig
 from resistant_kafka_avataa.logger import configure_logger
@@ -56,19 +59,29 @@ class ConsumerInitializer:
             consumer_config["security.protocol"] = (
                 config.security_config.security_protocol
             )
-            consumer_config["sasl.mechanisms"] = config.security_config.sasl_mechanisms
+            consumer_config["sasl.mechanisms"] = (
+                config.security_config.sasl_mechanisms
+            )
             if config.security_config.sasl_oauthbearer_method:
-                consumer_config["sasl.oauthbearer.method"] = config.security_config.sasl_oauthbearer_method
+                consumer_config["sasl.oauthbearer.method"] = (
+                    config.security_config.sasl_oauthbearer_method
+                )
             if config.security_config.sasl_oauthbearer_client_id:
-                consumer_config["sasl.oauthbearer.client.id"] = config.security_config.sasl_oauthbearer_client_id
+                consumer_config["sasl.oauthbearer.client.id"] = (
+                    config.security_config.sasl_oauthbearer_client_id
+                )
             if config.security_config.sasl_oauthbearer_client_secret:
-                consumer_config[
-                    "sasl.oauthbearer.client.secret"] = config.security_config.sasl_oauthbearer_client_secret
+                consumer_config["sasl.oauthbearer.client.secret"] = (
+                    config.security_config.sasl_oauthbearer_client_secret
+                )
             if config.security_config.sasl_oauthbearer_token_endpoint_url:
-                consumer_config[
-                    "sasl.oauthbearer.token.endpoint.url"] = config.security_config.sasl_oauthbearer_token_endpoint_url
+                consumer_config["sasl.oauthbearer.token.endpoint.url"] = (
+                    config.security_config.sasl_oauthbearer_token_endpoint_url
+                )
             if config.security_config.sasl_oauthbearer_scope:
-                consumer_config["sasl.oauthbearer.scope"] = config.security_config.sasl_oauthbearer_scope
+                consumer_config["sasl.oauthbearer.scope"] = (
+                    config.security_config.sasl_oauthbearer_scope
+                )
 
         return consumer_config
 
@@ -81,7 +94,6 @@ class ConsumerInitializer:
             f"to the topic {self._config.topic_to_subscribe}\n"
         )
 
-
     async def start(self):
         admin_client = AdminClient(self._set_consumer_config(self._config))
         try:
@@ -89,13 +101,15 @@ class ConsumerInitializer:
                 admin_client.list_topics, timeout=10
             )
             if self._topic_to_subscribe not in metadata.topics:
-                raise ValueError(f"Topic '{self._topic_to_subscribe}' not found!")
+                raise ValueError(
+                    f"Topic '{self._topic_to_subscribe}' not found!"
+                )
         except KafkaConnectionError as ex:
             print(f"Warning: Could not check topic existence: {ex}")
 
         self._consumer.subscribe(
             topics=[self._topic_to_subscribe],
-            on_assign=self._connection_flag_method
+            on_assign=self._connection_flag_method,
         )
 
     @staticmethod
@@ -182,18 +196,25 @@ def kafka_processor(
     :return: A decorator for wrapping the Kafka consumer's `process` method.
     """
     logger = configure_logger("kafka_processor")
+
     def handle_kafka_errors(wrapped_function):
         async def wrapper(self, *args, **kwargs):
-            __check_redis_settings_with_request(self._config, store_error_messages)
+            __check_redis_settings_with_request(
+                self._config, store_error_messages
+            )
 
             redis_client = None
             message = None
             if store_error_messages:
-                redis_client = self._config.redis_store_config.get_redis_client()
+                redis_client = (
+                    self._config.redis_store_config.get_redis_client()
+                )
 
             while True:
                 try:
-                    logger.debug(f"Polled at {datetime.datetime.now(tz=datetime.timezone.utc)}")
+                    logger.debug(
+                        f"Polled at {datetime.datetime.now(tz=datetime.timezone.utc)}"
+                    )
                     message = await self.get_message(self._consumer)
                     if self.message_is_empty(message, self._consumer):
                         if read_empty_messages:
@@ -203,10 +224,15 @@ def kafka_processor(
                             return
                     logger.debug(
                         f"Got message: {message.key()} Offset: {message.offset()} at"
-                        f" {datetime.datetime.now(tz=datetime.timezone.utc)}")
-                    logger.debug(f"Start processing at {datetime.datetime.now(tz=datetime.timezone.utc)}")
+                        f" {datetime.datetime.now(tz=datetime.timezone.utc)}"
+                    )
+                    logger.debug(
+                        f"Start processing at {datetime.datetime.now(tz=datetime.timezone.utc)}"
+                    )
                     await wrapped_function(self, message, *args, **kwargs)
-                    logger.debug(f"Done processing at {datetime.datetime.now(tz=datetime.timezone.utc)}")
+                    logger.debug(
+                        f"Done processing at {datetime.datetime.now(tz=datetime.timezone.utc)}"
+                    )
 
                 except Exception as e:
                     __process_kafka_error_message(
@@ -242,8 +268,16 @@ def __process_kafka_error_message(
     if raise_error:
         raise KafkaMessageError(error_message)
 
-    msg_key = _safe_decode(message.key()) if message is not None else default_no_message
-    msg_value = _safe_decode(message.value()) if message is not None else default_no_message
+    msg_key = (
+        _safe_decode(message.key())
+        if message is not None
+        else default_no_message
+    )
+    msg_value = (
+        _safe_decode(message.value())
+        if message is not None
+        else default_no_message
+    )
     msg_topic = message.topic() if message is not None else default_no_message
     msg_offset = message.offset() if message is not None else default_no_message
 
@@ -277,7 +311,7 @@ async def process_kafka_connection(tasks: list[ConsumerInitializer]) -> None:
     :param tasks: A list of initialized Kafka consumers.
     """
     for task in tasks:
-        if hasattr(task, 'start'):
+        if hasattr(task, "start"):
             await task.start()
 
     while True:

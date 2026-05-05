@@ -24,7 +24,10 @@ class MessageDeserializer:
         self.schema_registry_client = None
         self.topic = topic
         self.deserializers: dict[
-            str, dict[str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]]
+            str,
+            dict[
+                str, Optional[ProtobufDeserializer, DefaultMessageDeserializer]
+            ],
         ] = defaultdict(dict)
         self.proto_deserializers: dict = dict()
         self.logger = getLogger("Message Handler")
@@ -89,11 +92,14 @@ class MessageDeserializer:
         )
 
         if not_registered_topic:
-            raise ValueError(f"No deserializer registered for topic {self.topic}")
+            raise ValueError(
+                f"No deserializer registered for topic {self.topic}"
+            )
 
         deserializer = self.deserializers[self.topic][key]
         return deserializer(
-            message.value(), SerializationContext(self.topic, MessageField.VALUE)
+            message.value(),
+            SerializationContext(self.topic, MessageField.VALUE),
         )
 
     def deserialize_to_dict(self, message: Any):
@@ -138,7 +144,9 @@ class DefaultMessageDeserializer:
 
         return message
 
-    def __call__(self, message: bytes, ctx: Optional[SerializationContext] = None):
+    def __call__(
+        self, message: bytes, ctx: Optional[SerializationContext] = None
+    ):
         """
         Looks like ProtobufDeserializer from confluent_kafka.schema_registry.protobuf.
         So we have to use by default "ctx" attribute

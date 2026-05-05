@@ -6,16 +6,26 @@ with open("README.md", "r") as f:
 
 setup(
     name="resistant_kafka_avataa",
-    version='0.9.8b13',
+    version="0.9.8b13",
     packages=find_packages(exclude=["tests", "tests.*"]),
     install_requires=[
         "confluent-kafka[protobuf,schemaregistry]>=2.10.0,<3.0.0",
         "protobuf>=5.29.6,<8.0.0",
-        "pydantic>=1.10.26,<3.0.0"
+        "pydantic>=1.10.26,<3.0.0",
     ],
     long_description=description,
     long_description_content_type="text/markdown",
 )
+
+# Release to PyPI (use build, not setup.py directly):
+# 1. Bump version above.
+# 2. pip install build twine
+# 3. python -m build
+# 4. twine check dist/*
+# 5. twine upload dist/*
+
+# Before new version we should remove old data
+# rm -rf dist/ build/ *.egg-info
 
 # Old version
 # to update version:
@@ -26,11 +36,3 @@ setup(
 # 2.
 # pip install twine
 # twine upload dist/*
-
-
-# Release to PyPI (use build, not setup.py directly):
-# 1. Bump version above.
-# 2. pip install build twine
-# 3. python -m build
-# 4. twine check dist/*
-# 5. twine upload dist/*

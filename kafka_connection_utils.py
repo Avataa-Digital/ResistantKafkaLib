@@ -17,10 +17,7 @@ def get_token_for_kafka_by_keycloak(conf):
             response = requests.post(
                 url="https://auth.avataa.dev/realms/avataa/protocol/openid-connect/token",
                 timeout=30,
-                auth=(
-                    "kafka",
-                    "jgzLadFycvGvtuxVYtPVDn7nW6k4xjDG"
-                ),
+                auth=("kafka", "jgzLadFycvGvtuxVYtPVDn7nW6k4xjDG"),
                 data=payload,
             )
         except ConnectionError:
@@ -30,11 +27,11 @@ def get_token_for_kafka_by_keycloak(conf):
         else:
             if response.status_code == 200:
                 token = response.json()
-                return token["access_token"], time.time() + float(token["expires_in"])
+                return token["access_token"], time.time() + float(
+                    token["expires_in"]
+                )
 
             time.sleep(1)
             attempt -= 1
 
-    raise TokenIsNotValid(
-        "Token verification service unavailable"
-    )
+    raise TokenIsNotValid("Token verification service unavailable")
