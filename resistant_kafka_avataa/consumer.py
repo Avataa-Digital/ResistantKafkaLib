@@ -62,26 +62,7 @@ class ConsumerInitializer:
             consumer_config["sasl.mechanisms"] = (
                 config.security_config.sasl_mechanisms
             )
-            if config.security_config.sasl_oauthbearer_method:
-                consumer_config["sasl.oauthbearer.method"] = (
-                    config.security_config.sasl_oauthbearer_method
-                )
-            if config.security_config.sasl_oauthbearer_client_id:
-                consumer_config["sasl.oauthbearer.client.id"] = (
-                    config.security_config.sasl_oauthbearer_client_id
-                )
-            if config.security_config.sasl_oauthbearer_client_secret:
-                consumer_config["sasl.oauthbearer.client.secret"] = (
-                    config.security_config.sasl_oauthbearer_client_secret
-                )
-            if config.security_config.sasl_oauthbearer_token_endpoint_url:
-                consumer_config["sasl.oauthbearer.token.endpoint.url"] = (
-                    config.security_config.sasl_oauthbearer_token_endpoint_url
-                )
-            if config.security_config.sasl_oauthbearer_scope:
-                consumer_config["sasl.oauthbearer.scope"] = (
-                    config.security_config.sasl_oauthbearer_scope
-                )
+            consumer_config.update(config.security_config.to_confluent_extra())
 
         return consumer_config
 

@@ -843,8 +843,8 @@ wheels = [
 ]
 
 [[package]]
-name = "resistantkafkalib"
-version = "0.9.8b14"
+name = "resistant-kafka-avataa"
+version = "0.9.9b0"
 source = { editable = "." }
 dependencies = [
     { name = "confluent-kafka", extra = ["protobuf", "schemaregistry"] },

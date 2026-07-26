@@ -1,18 +1,30 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 from pydantic import BaseModel
 from redis import Redis
 
+_SECURITY_OPTIONAL_CONFLUENT_MAPPING: dict[str, str] = {
+    "sasl_oauthbearer_method": "sasl.oauthbearer.method",
+    "sasl_oauthbearer_client_id": "sasl.oauthbearer.client.id",
+    "sasl_oauthbearer_client_secret": "sasl.oauthbearer.client.secret",
+    "sasl_oauthbearer_token_endpoint_url": "sasl.oauthbearer.token.endpoint.url",
+    "sasl_oauthbearer_scope": "sasl.oauthbearer.scope",
+    "ssl_ca_location": "ssl.ca.location",
+    "ssl_certificate_location": "ssl.certificate.location",
+    "ssl_key_location": "ssl.key.location",
+    "ssl_key_password": "ssl.key.password",
+}
+
 
 class KafkaSecurityConfig(BaseModel):
     """
-    Security configuration settings for a Kafka consumer. Uses as part for main config classes.
+    Security configuration settings for a Kafka consumer/producer.
 
     :param oauth_cb: A function that returns a token for authentication.
                             Required only if `secured` is True.
     :param security_protocol: The protocol used to communicate with Kafka brokers
-                              (e.g., 'SASL_PLAINTEXT', 'SASL_SSL').
+                              (e.g., 'SASL_PLAINTEXT', 'SASL_SSL', 'SSL').
     :param sasl_mechanisms: The SASL mechanism used for authentication (e.g., 'PLAIN', 'SCRAM-SHA-256').
     :param error_cb: A function that returns an error during the authentication.
     Accordance KIP-1139
@@ -21,6 +33,10 @@ class KafkaSecurityConfig(BaseModel):
     :param sasl_oauthbearer_client_secret: The SASL OAuth client secret used for authentication.
     :param sasl_oauthbearer_token_endpoint_url: The SASL OAuth token endpoint URL.
     :param sasl_oauthbearer_scope: The SASL OAuth scope used for authentication.
+    :param ssl_ca_location: Path to CA certificate file (maps to ssl.ca.location).
+    :param ssl_certificate_location: Path to client certificate file (maps to ssl.certificate.location).
+    :param ssl_key_location: Path to client private key file (maps to ssl.key.location).
+    :param ssl_key_password: Password for the client private key (maps to ssl.key.password).
     """
 
     oauth_cb: Callable | None = None
@@ -32,6 +48,19 @@ class KafkaSecurityConfig(BaseModel):
     sasl_oauthbearer_client_secret: str | None = None
     sasl_oauthbearer_token_endpoint_url: str | None = None
     sasl_oauthbearer_scope: str | None = None
+    ssl_ca_location: str | None = None
+    ssl_certificate_location: str | None = None
+    ssl_key_location: str | None = None
+    ssl_key_password: str | None = None
+
+    def to_confluent_extra(self) -> dict[str, Any]:
+        """Return optional confluent-kafka config entries derived from this security config."""
+        result: dict[str, Any] = {}
+        for attr, confluent_key in _SECURITY_OPTIONAL_CONFLUENT_MAPPING.items():
+            value = getattr(self, attr)
+            if value:
+                result[confluent_key] = value
+        return result
 
 
 class RedisStoreConfig(BaseModel):

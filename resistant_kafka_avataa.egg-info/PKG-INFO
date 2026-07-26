@@ -1,3 +1,14 @@
+Metadata-Version: 2.4
+Name: resistant_kafka_avataa
+Version: 0.9.8b15
+Summary: High-level wrapper for confluent-kafka-python with built-in retry logic and protobuf support.
+Project-URL: Homepage, https://github.com/Avataa-Digital/ResistantKafkaLib
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: confluent-kafka[protobuf,schemaregistry]<2.15.0,>=2.10.0
+Requires-Dist: protobuf<8.0.0,>=5.29.6
+Requires-Dist: pydantic<3.0.0,>=1.10.26
+
 # Resistant Kafka
 
 **Resistant Kafka** is a Python library designed to simplify and stabilize interactions with Apache Kafka, both as a
