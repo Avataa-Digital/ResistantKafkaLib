@@ -12,7 +12,9 @@ def _base_security_config() -> KafkaSecurityConfig:
     )
 
 
-def test_to_confluent_extra_without_optional_fields_returns_empty_dict() -> None:
+def test_to_confluent_extra_without_optional_fields_returns_empty_dict() -> (
+    None
+):
     """When no optional fields are set, to_confluent_extra returns an empty dict."""
     # Arrange
     config: KafkaSecurityConfig = _base_security_config()

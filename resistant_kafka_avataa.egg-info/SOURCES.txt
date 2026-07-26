@@ -1,7 +1,6 @@
 MANIFEST.in
 README.md
 pyproject.toml
-setup.py
 resistant_kafka_avataa/__init__.py
 resistant_kafka_avataa/common_exceptions.py
 resistant_kafka_avataa/common_schemas.py

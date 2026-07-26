@@ -1,3 +1,4 @@
 confluent-kafka[protobuf,schemaregistry]<2.15.0,>=2.10.0
 protobuf<8.0.0,>=5.29.6
 pydantic<3.0.0,>=1.10.26
+redis<9.0.0,>=5.0.0

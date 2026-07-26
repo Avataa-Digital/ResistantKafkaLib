@@ -56,6 +56,8 @@ max-line-length = 120
 "tests/**/*.py" = [
     # asserts allowed in tests
     "S101",
+    # fake credentials passed as arguments are test data, not a finding
+    "S106",
 ]
 
 [format]
