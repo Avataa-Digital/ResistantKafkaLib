@@ -1,6 +1,9 @@
 from confluent_kafka import Producer
 
+from resistant_kafka_avataa.logger import configure_logger
 from resistant_kafka_avataa.producer_schemas import ProducerConfig, DataSend
+
+_logger = configure_logger(__name__)
 
 
 class ProducerInitializer:
@@ -46,21 +49,22 @@ class ProducerInitializer:
         """
         Logs a message when the producer successfully sent to the topic.
         """
+        # The record key is business data and is never logged, at any level.
         if error_message is not None:
-            print(
-                "Delivery failed for User record {}: {}".format(
-                    message.key(), error_message
-                )
+            _logger.error(
+                "Delivery failed for a record to %s [%s]: %s",
+                message.topic(),
+                message.partition(),
+                error_message,
             )
             return
 
-        print(
-            "User record {} successfully produced to {} [{}] at offset {}".format(
-                message.key(),
-                message.topic(),
-                message.partition(),
-                message.offset(),
-            )
+        # One line per produced message: too loud for the default output.
+        _logger.debug(
+            "Record produced to %s [%s] at offset %s",
+            message.topic(),
+            message.partition(),
+            message.offset(),
         )
 
     def send_message(

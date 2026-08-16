@@ -1,5 +1,14 @@
 from importlib.metadata import version as _package_version
 
+from .common_exceptions import (
+    ConfigurationError,
+    KafkaConnectionError,
+    KafkaMessageError,
+    MessageDeserializationError,
+    MessageSerializationError,
+    ResistantKafkaError,
+    TokenIsNotValid,
+)
 from .consumer import (
     ConsumerInitializer,
     init_kafka_connection,
@@ -21,4 +30,13 @@ __all__ = [
     "ProducerInitializer",
     "ProducerConfig",
     "DataSend",
+    # The exception contract: everything this package raises inherits from
+    # ResistantKafkaError, so one clause is enough to catch it all.
+    "ResistantKafkaError",
+    "ConfigurationError",
+    "KafkaConnectionError",
+    "KafkaMessageError",
+    "MessageDeserializationError",
+    "MessageSerializationError",
+    "TokenIsNotValid",
 ]

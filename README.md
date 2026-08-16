@@ -30,8 +30,84 @@ It is used for storing error messages and retrieving full information about each
 
 ### 🧾 Built-in logging of errors and events
 
-Output of basic logs of connection of topic handlers in one consumer, as well as output of messages about successful
-sending of a message from the producer to certain topics.
+Everything the package writes goes to standard `logging` loggers under the single
+`resistant_kafka_avataa` prefix — subscription and topic checks from the consumer,
+delivery reports from the producer, deserializer registration. Nothing is written to
+stdout with `print`.
+
+Configure it like any other library logger:
+
+```commandline
+import logging
+
+logging.getLogger("resistant_kafka_avataa").setLevel(logging.WARNING)
+```
+
+The level can also be set with the `RESISTANT_KAFKA_LOG_LEVEL` environment variable
+(default `INFO`).
+
+**If your service has not configured logging at all**, the package falls back to
+writing its own records to stderr, so warnings are not lost. That fallback switches
+itself off the moment any handler of yours can receive the record, so the lines are
+never printed twice — you do not have to choose between the two.
+
+Two things are deliberately kept at `DEBUG` and are therefore invisible by default:
+
+- the **body of a failed message**, because it may contain personal data or tokens.
+  The error line itself always carries the topic, offset, key, error type and error
+  text; only the value is held back;
+- the **per-message delivery confirmation** from the producer, which would otherwise
+  be one line for every message sent.
+
+```commandline
+logging.getLogger("resistant_kafka_avataa").setLevel(logging.DEBUG)
+```
+
+> ⚠️ **Note for existing users.** Up to and including `0.9.8b16` importing this package
+> called `logging.basicConfig()`, which configured the **root** logger of the host
+> process. A library has no business doing that, and the call is being removed. It is
+> still present in this release, because for services that never configure logging
+> themselves it is the only reason their own `INFO` records are visible at all —
+> removing it without warning would silence the service, not just this package. Add
+> `logging.basicConfig(level=logging.INFO)` (or your own configuration) to your
+> application's entry point; the next release drops the call.
+
+###
+
+### 🧯 Errors you can catch
+
+Everything this package raises inherits from a single base, so one clause is enough:
+
+```commandline
+from resistant_kafka_avataa import ResistantKafkaError
+
+try:
+    ...
+except ResistantKafkaError:
+    ...
+```
+
+| Exception | Raised when |
+|---|---|
+| `ResistantKafkaError` | base of all of them — never raised directly |
+| `KafkaConnectionError` | a consumer could not be started |
+| `KafkaMessageError` | processing a message failed and `raise_error=True` |
+| `ConfigurationError` | the configuration given to the library cannot be used |
+| `MessageSerializationError` | a message could not be serialized for sending |
+| `MessageDeserializationError` | a consumed message could not be deserialized |
+| `TokenIsNotValid` | the received token did not pass verification |
+
+The base was added in `0.9.8b17` as a parent of the classes that already existed, so
+`except KafkaConnectionError` and `except Exception` keep working unchanged.
+
+The two serialization errors replace the plain `ValueError` those code paths raised up
+to `0.9.8b16`. They inherit **both** the base and `ValueError`, so existing
+`except ValueError` around serializing or deserializing keeps working. That second
+parent is a compatibility bridge and is removed in `0.10.0` — move such handlers to
+`ResistantKafkaError` before then.
+
+Exception messages carry the processor name, the topic and the message coordinates —
+never the message key or its payload.
 
 ###
 
@@ -184,12 +260,76 @@ init_kafka_connection(
 
 ️⚠️In the way, where you have already created loop - use method **_"process_kafka_connection"_** ⚠️
 
+**_process_kafka_connection_** is a long-running coroutine. Keep a reference to the task,
+otherwise it may be garbage collected while it runs.
+
+The coroutine logs any exception before re-raising it, so a failure is never silent even
+if nobody reads the task's result — **you do not need a callback just to see the error**.
+Add one only when the service has to *react* to a consumer that stopped: fail a readiness
+probe, shut down, page someone. Do not log the exception again there — it is already in
+the log with its traceback, and a second record only doubles the noise.
+
 ```commandline
 import asyncio
-from resistant_kafka.consumer import process_kafka_connection
 
-asyncio.create_task(process_kafka_connection([inventory_changes_processor]))
+from resistant_kafka_avataa.consumer import process_kafka_connection
+
+
+def on_kafka_task_done(task: asyncio.Task) -> None:
+    if task.cancelled() or task.exception() is None:
+        return
+    # Already logged by the library — react, do not re-log.
+    app.state.kafka_consumer_healthy = False
+
+
+kafka_task = asyncio.create_task(
+    process_kafka_connection([inventory_changes_processor])
+)
+kafka_task.add_done_callback(on_kafka_task_done)
 ```
+
+On shutdown, do not assume the task is still alive: if it has already failed, `cancel()`
+does nothing and `await` re-raises its exception, which `suppress(asyncio.CancelledError)`
+does not catch.
+
+```commandline
+if kafka_task is not None and not kafka_task.done():
+    kafka_task.cancel()
+with suppress(asyncio.CancelledError, Exception):
+    await kafka_task
+```
+
+### What happens when the topic does not exist
+
+Before subscribing, every processor checks that its topic is present on the cluster. A
+missing topic is **a warning, not a startup failure**: the topic may be created later by
+a producer or an administrator, and the subscription starts reading as soon as it
+appears. The same applies when cluster metadata cannot be fetched at all — the consumer
+subscribes anyway and librdkafka keeps reconnecting.
+
+```text
+WARNING - resistant_kafka_avataa.consumer - DocumentsChangesProcessor: topic
+'documents.changes' does not exist on localhost:9092. The consumer stays subscribed
+and starts reading as soon as the topic appears; until then it consumes nothing.
+Check the topic name if this is unexpected.
+```
+
+The positive signal to look for is the subscription line, logged once partitions are
+assigned. If it never appears, the processor is not reading anything:
+
+```text
+INFO - resistant_kafka_avataa.consumer - DocumentsChangesProcessor successfully
+subscribed to the topic documents.changes
+```
+
+Consumers are started concurrently, and one that fails to start is logged and skipped
+without holding back the others. If none of them can start,
+**_process_kafka_connection_** raises `KafkaConnectionError`.
+
+However the connection ends — an error in one of the processors, or the `cancel()` your
+service sends on shutdown — the remaining processors are stopped and every consumer is
+closed, so no client keeps its threads and sockets after the task is gone. Cancelling the
+task is therefore a clean shutdown and is not reported as an error.
 
 ###
 

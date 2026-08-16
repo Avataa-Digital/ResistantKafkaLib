@@ -1,11 +1,15 @@
 from collections import defaultdict
-from logging import getLogger
 from typing import Any, Optional, Type
 
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
 from confluent_kafka.serialization import SerializationContext, MessageField
 from google.protobuf import json_format
+
+from resistant_kafka_avataa.common_exceptions import (
+    MessageDeserializationError,
+)
+from resistant_kafka_avataa.logger import configure_logger
 
 _SCHEMA_REGISTRY_VALUE_FLAG = 0
 _SCHEMA_REGISTRY_SERVICE_VALUES = 7
@@ -30,7 +34,7 @@ class MessageDeserializer:
             ],
         ] = defaultdict(dict)
         self.proto_deserializers: dict = dict()
-        self.logger = getLogger("Message Handler")
+        self.logger = configure_logger(__name__)
 
         if schema_registry_url:
             self.schema_registry_client = SchemaRegistryClient(
@@ -67,7 +71,9 @@ class MessageDeserializer:
         self.proto_deserializers[message_type.__name__] = message_type
 
         self.logger.info(
-            f"Registered new deserializer for topic {self.topic} and key {message_type.__name__}"
+            "Registered new deserializer for topic %s and key %s",
+            self.topic,
+            message_type.__name__,
         )
 
     def deserialize(
@@ -92,7 +98,7 @@ class MessageDeserializer:
         )
 
         if not_registered_topic:
-            raise ValueError(
+            raise MessageDeserializationError(
                 f"No deserializer registered for topic {self.topic}"
             )
 
@@ -133,7 +139,7 @@ class DefaultMessageDeserializer:
 
     def __init__(self, message_type: Any) -> None:
         self.message_type = message_type
-        self.logger = getLogger("Manual Deserializer")
+        self.logger = configure_logger(__name__)
 
     def _remove_schema_registry_flags(self, message: bytes) -> bytes:
         """
@@ -151,7 +157,6 @@ class DefaultMessageDeserializer:
         Looks like ProtobufDeserializer from confluent_kafka.schema_registry.protobuf.
         So we have to use by default "ctx" attribute
         """
-        self.logger.info("Deserialized with help manual")
         message = self._remove_schema_registry_flags(message=message)
 
         message_type = self.message_type()
@@ -161,6 +166,8 @@ class DefaultMessageDeserializer:
             return message_type
 
         except Exception as ex:
-            self.logger.info(type(ex))
-            self.logger.exception(ex)
-            raise ValueError("Incorrect message")
+            # Not logged here: the failure is reported once by the processor
+            # that handles it, and the cause travels with the exception.
+            raise MessageDeserializationError(
+                "Message could not be parsed"
+            ) from ex

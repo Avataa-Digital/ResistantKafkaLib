@@ -1,9 +1,13 @@
-from logging import getLogger
 from typing import Any
 
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer
 from confluent_kafka.serialization import SerializationContext, MessageField
+
+from resistant_kafka_avataa.common_exceptions import (
+    MessageSerializationError,
+)
+from resistant_kafka_avataa.logger import configure_logger
 
 
 class MessageSerializer:
@@ -29,7 +33,7 @@ class MessageSerializer:
                 }
             )
 
-        self.logger = getLogger("Message Serializer")
+        self.logger = configure_logger(__name__)
 
     def register_protobuf_serializer(self, message_type: Any) -> None:
         if self._schema_registry_url:
@@ -40,7 +44,7 @@ class MessageSerializer:
             )
 
             self.logger.info(
-                f"Registered new serializer for key {message_type.__name__}"
+                "Registered new serializer for key %s", message_type.__name__
             )
 
     def serialize(self, message_to_send: Any, class_name: str | None = None):
@@ -52,6 +56,8 @@ class MessageSerializer:
                     message_to_send,
                     SerializationContext(self._topic, MessageField.VALUE),
                 )
-            raise ValueError(f"Incorrect Key: {class_name}")
+            raise MessageSerializationError(
+                f"No serializer registered for key {class_name}"
+            )
 
         return message_to_send.SerializeToString()
