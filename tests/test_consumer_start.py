@@ -253,9 +253,7 @@ def test_starting_a_consumer_emits_no_librdkafka_config_warnings(
     """
     # Arrange — a port nothing listens on, so no broker is touched even where
     # one happens to run locally, and a short timeout to pay for it once
-    monkeypatch.setattr(
-        consumer_module, "_TOPIC_METADATA_TIMEOUT_SECONDS", 0.5
-    )
+    monkeypatch.setattr(consumer_module, "_TOPIC_METADATA_TIMEOUT_SECONDS", 0.5)
     config = make_config()
     config.bootstrap_servers = UNREACHABLE_BROKER
     initializer = ConsumerInitializer(config=config)
