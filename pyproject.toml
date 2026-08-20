@@ -1,6 +1,6 @@
 [project]
 name = "resistant_kafka_avataa"
-version = "0.9.8b17"
+version = "0.9.8b18"
 description = "High-level wrapper for confluent-kafka-python with built-in retry logic and protobuf support."
 readme = "README.md"
 requires-python = ">=3.11"
