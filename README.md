@@ -90,7 +90,7 @@ except ResistantKafkaError:
 | Exception | Raised when |
 |---|---|
 | `ResistantKafkaError` | base of all of them — never raised directly |
-| `KafkaConnectionError` | a consumer could not be started |
+| `KafkaConnectionError` | a consumer could not be created or started: Kafka refused the configuration, or none of the consumers came up |
 | `KafkaMessageError` | processing a message failed and `raise_error=True` |
 | `ConfigurationError` | the configuration given to the library cannot be used |
 | `MessageSerializationError` | a message could not be serialized for sending |
@@ -105,6 +105,11 @@ to `0.9.8b16`. They inherit **both** the base and `ValueError`, so existing
 `except ValueError` around serializing or deserializing keeps working. That second
 parent is a compatibility bridge and is removed in `0.10.0` — move such handlers to
 `ResistantKafkaError` before then.
+
+Since `0.9.8b18` a configuration Kafka refuses raises `KafkaConnectionError` from the
+processor's constructor as well. Up to `0.9.8b17` that one path let a raw
+`confluent_kafka.KafkaException` out of the package, which `except ResistantKafkaError`
+could not catch; the original exception is kept as the `__cause__`.
 
 Exception messages carry the processor name, the topic and the message coordinates —
 never the message key or its payload.

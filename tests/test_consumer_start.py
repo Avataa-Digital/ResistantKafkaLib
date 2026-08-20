@@ -17,6 +17,8 @@ LOGGER_NAME = "resistant_kafka_avataa.consumer"
 TOPIC = "documents.changes"
 PROCESSOR = "DocumentsChangesProcessor"
 BROKER = "localhost:9092"
+#: Discard port: refuses connections, so a real client reaches no broker.
+UNREACHABLE_BROKER = "localhost:9"
 
 
 class _StopLoop(Exception):
@@ -105,22 +107,21 @@ def make_metadata(*topics: str) -> MagicMock:
 
 
 @pytest.fixture
-def admin_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patch confluent Consumer and AdminClient, return the admin client mock."""
-    monkeypatch.setattr(consumer_module, "Consumer", MagicMock())
+def kafka_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Patch the confluent Consumer, return the client mock it hands out."""
     client = MagicMock()
     monkeypatch.setattr(
-        consumer_module, "AdminClient", MagicMock(return_value=client)
+        consumer_module, "Consumer", MagicMock(return_value=client)
     )
     return client
 
 
 def test_missing_topic_does_not_raise_and_subscribes(
-    admin_client: MagicMock,
+    kafka_client: MagicMock,
 ) -> None:
     """A missing topic does not stop the consumer: it subscribes anyway."""
     # Arrange
-    admin_client.list_topics.return_value = make_metadata("some.other.topic")
+    kafka_client.list_topics.return_value = make_metadata("some.other.topic")
     initializer = ConsumerInitializer(config=make_config())
 
     # Act
@@ -131,11 +132,11 @@ def test_missing_topic_does_not_raise_and_subscribes(
 
 
 def test_missing_topic_logs_warning_naming_processor_topic_broker(
-    admin_client: MagicMock, caplog: pytest.LogCaptureFixture
+    kafka_client: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The missing-topic warning names the processor, the topic and the broker."""
     # Arrange
-    admin_client.list_topics.return_value = make_metadata("some.other.topic")
+    kafka_client.list_topics.return_value = make_metadata("some.other.topic")
     initializer = ConsumerInitializer(config=make_config())
 
     # Act
@@ -151,11 +152,11 @@ def test_missing_topic_logs_warning_naming_processor_topic_broker(
 
 
 def test_metadata_fetch_failure_does_not_raise(
-    admin_client: MagicMock, caplog: pytest.LogCaptureFixture
+    kafka_client: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An unreachable broker is a warning, not a startup failure."""
     # Arrange
-    admin_client.list_topics.side_effect = KafkaException("broker is down")
+    kafka_client.list_topics.side_effect = KafkaException("broker is down")
     initializer = ConsumerInitializer(config=make_config())
 
     # Act
@@ -168,11 +169,11 @@ def test_metadata_fetch_failure_does_not_raise(
 
 
 def test_existing_topic_logs_no_warning(
-    admin_client: MagicMock, caplog: pytest.LogCaptureFixture
+    kafka_client: MagicMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The happy path stays silent at WARNING level."""
     # Arrange
-    admin_client.list_topics.return_value = make_metadata(TOPIC)
+    kafka_client.list_topics.return_value = make_metadata(TOPIC)
     initializer = ConsumerInitializer(config=make_config())
 
     # Act
@@ -187,19 +188,86 @@ def test_existing_topic_logs_no_warning(
 def test_rejected_configuration_raises_kafka_connection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configuration Kafka refuses fails the start with our own exception."""
+    """A configuration Kafka refuses leaves the package as our own exception."""
     # Arrange
-    monkeypatch.setattr(consumer_module, "Consumer", MagicMock())
     monkeypatch.setattr(
         consumer_module,
-        "AdminClient",
+        "Consumer",
         MagicMock(side_effect=KafkaException("unknown property")),
     )
+
+    # Act
+    with pytest.raises(KafkaConnectionError) as raised:
+        ConsumerInitializer(config=make_config())
+
+    # Assert — our type, our processor named, their exception kept as the cause
+    assert PROCESSOR in str(raised.value)
+    assert isinstance(raised.value.__cause__, KafkaException)
+
+
+def test_topic_check_uses_the_consumer_and_builds_no_second_client(
+    kafka_client: MagicMock,
+) -> None:
+    """The topic list is read through the consumer's own client, not an admin one."""
+    # Arrange
+    kafka_client.list_topics.return_value = make_metadata(TOPIC)
     initializer = ConsumerInitializer(config=make_config())
 
-    # Act / Assert
-    with pytest.raises(KafkaConnectionError):
+    # Act
+    asyncio.run(initializer.start())
+
+    # Assert — an admin client would be handed the consumer-only settings
+    kafka_client.list_topics.assert_called_once()
+    assert not hasattr(consumer_module, "AdminClient")
+
+
+def test_the_client_queue_is_served_before_metadata_is_requested(
+    kafka_client: MagicMock,
+) -> None:
+    """poll() runs before list_topics, or SASL/OAUTHBEARER never gets a token.
+
+    Both calls happen in any version of this code, so asserting that they were
+    made proves nothing. Only their order does.
+    """
+    # Arrange
+    kafka_client.list_topics.return_value = make_metadata(TOPIC)
+    initializer = ConsumerInitializer(config=make_config())
+
+    # Act
+    asyncio.run(initializer.start())
+
+    # Assert
+    called = [name for name, _, _ in kafka_client.mock_calls]
+    assert called.index("poll") < called.index("list_topics")
+
+
+def test_starting_a_consumer_emits_no_librdkafka_config_warnings(
+    capfd: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Real librdkafka accepts every setting the startup path gives it.
+
+    No broker is needed and none is used: librdkafka parses the configuration
+    while the client is being created and prints its warnings there, long
+    before it connects. Mocks cannot cover this — they never see the settings
+    librdkafka itself objects to.
+    """
+    # Arrange — a port nothing listens on, so no broker is touched even where
+    # one happens to run locally, and a short timeout to pay for it once
+    monkeypatch.setattr(
+        consumer_module, "_TOPIC_METADATA_TIMEOUT_SECONDS", 0.5
+    )
+    config = make_config()
+    config.bootstrap_servers = UNREACHABLE_BROKER
+    initializer = ConsumerInitializer(config=config)
+
+    # Act
+    try:
         asyncio.run(initializer.start())
+    finally:
+        initializer._consumer.close()
+
+    # Assert
+    assert "CONFWARN" not in capfd.readouterr().err
 
 
 def test_process_kafka_connection_logs_before_reraising(

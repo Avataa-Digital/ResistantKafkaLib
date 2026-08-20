@@ -8,7 +8,6 @@ from asyncio import Future
 from typing import Any
 
 from confluent_kafka import Consumer, KafkaException, cimpl
-from confluent_kafka.admin import AdminClient
 
 from resistant_kafka_avataa.common_exceptions import (
     ConfigurationError,
@@ -45,8 +44,20 @@ class ConsumerInitializer:
         :param config: The configuration for the consumer.
         :param deserializers: Deserializers objects for deserializing Kafka messages
                             (custom deserializers are supported, and default string too)
+
+        :raises KafkaConnectionError: if the configuration is not accepted by
+                                      Kafka.
         """
-        self._consumer = Consumer(self._set_consumer_config(config=config))
+        try:
+            self._consumer = Consumer(self._set_consumer_config(config=config))
+        except KafkaException as ex:
+            # Kafka rejects the configuration with its own exception type,
+            # which a service cannot catch as one of ours.
+            raise KafkaConnectionError(
+                f"{config.processor_name}: the consumer configuration is not "
+                f"accepted by Kafka: {ex}"
+            ) from ex
+
         self._topic_to_subscribe = config.topic_to_subscribe
         self._config = config
         self._deserializers = deserializers
@@ -89,34 +100,45 @@ class ConsumerInitializer:
             self._config.topic_to_subscribe,
         )
 
+    def _fetch_cluster_metadata(self) -> Any:
+        """
+        Asks the consumer's own client for the metadata of the cluster.
+
+        The topic list is cluster metadata, which every client can read, and
+        not an administrative operation: no second Kafka client is created
+        here. An admin client would also be handed the consumer settings, and
+        librdkafka would then warn about every one of them on stderr.
+
+        The ``poll`` call is not redundant. Under SASL/OAUTHBEARER librdkafka
+        does not fetch a token by itself: it queues a refresh event, and
+        ``oauth_cb`` runs only while the client's queue is being served.
+        ``list_topics`` blocks inside the metadata request and never serves
+        that queue, so without the poll the handshake cannot complete and the
+        lookup times out.
+        https://github.com/confluentinc/confluent-kafka-python/issues/1713
+
+        Polling before the subscription is safe: nothing is assigned to this
+        consumer yet, so no message can be read and dropped here.
+
+        :returns: The cluster metadata reported by Kafka.
+        """
+        self._consumer.poll(0)
+        return self._consumer.list_topics(
+            timeout=_TOPIC_METADATA_TIMEOUT_SECONDS
+        )
+
     async def _check_topic_is_available(self) -> None:
         """
         Reports a missing topic as a warning without stopping the consumer.
 
         Neither a missing topic nor an unreachable broker is treated as a
         startup failure: the topic may be created later, and the subscription
-        below picks it up as soon as it appears. Only a configuration that
-        cannot produce an admin client at all is fatal.
-
-        :raises KafkaConnectionError: if the admin client cannot be built
-                                      from the consumer configuration.
+        below picks it up as soon as it appears. A configuration Kafka refuses
+        cannot be met here at all — the client is built in ``__init__``, which
+        fails there.
         """
         try:
-            admin_client = AdminClient(
-                self._set_consumer_config(config=self._config)
-            )
-        except KafkaException as ex:
-            raise KafkaConnectionError(
-                f"{self._config.processor_name}: cannot check topic "
-                f"'{self._topic_to_subscribe}', the consumer configuration "
-                f"is not accepted by Kafka: {ex}"
-            ) from ex
-
-        try:
-            metadata = await asyncio.to_thread(
-                admin_client.list_topics,
-                timeout=_TOPIC_METADATA_TIMEOUT_SECONDS,
-            )
+            metadata = await asyncio.to_thread(self._fetch_cluster_metadata)
         except KafkaException as ex:
             _logger.warning(
                 "%s: could not check whether topic %r exists on %s: %s. "
@@ -144,9 +166,6 @@ class ConsumerInitializer:
     async def start(self) -> None:
         """
         Checks the topic and subscribes the consumer to it.
-
-        :raises KafkaConnectionError: if the consumer configuration is not
-                                      accepted by Kafka.
         """
         await self._check_topic_is_available()
 
